@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 
-data_root = './data'
+data_root = os.path.join(os.path.dirname(__file__), 'data')
 RANDOM_STATE = 7
 
 
