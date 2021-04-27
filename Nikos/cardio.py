@@ -1,7 +1,9 @@
 import os
 
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
 data_root = os.path.join(os.path.dirname(__file__), 'data')
@@ -17,6 +19,10 @@ def main():
     # Split the train set in 2. The unlabeled set, with 95% of samples and the labeled set, with only 5%.
     # From this point forward, y_train_u is considered unknown and will only be used as a replacement for a human annotator
     x_train_l, x_train_u, y_train_l, y_train_u = train_test_split(x_train, y_train, test_size=0.95, random_state=RANDOM_STATE)
+
+    model = LogisticRegression()
+    model.fit(x_train_l, y_train_l)
+    probabilities = model.predict_proba(x_train_u)
 
 
 if __name__ == '__main__':
