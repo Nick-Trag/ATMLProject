@@ -1,9 +1,11 @@
 import os
 
+import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from scipy.stats import entropy
 
 
 data_root = os.path.join(os.path.dirname(__file__), 'data')
@@ -22,7 +24,26 @@ def main():
 
     model = LogisticRegression()
     model.fit(x_train_l, y_train_l)
-    probabilities = model.predict_proba(x_train_u)
+
+    accuracies = np.zeros(len(y_train_u) + 1)
+    precisions = np.zeros_like(accuracies)
+    recalls = np.zeros_like(accuracies)
+    f1s = np.zeros_like(accuracies)
+
+    for i in range(len(accuracies)):
+        y_pred = model.predict(x_val)
+        accuracies[i] = accuracy_score(y_val, y_pred)
+        precisions[i] = precision_score(y_val, y_pred)
+        recalls[i] = recall_score(y_val, y_pred)
+        f1s[i] = f1_score(y_val, y_pred)
+
+        probabilities = model.predict_proba(x_train_u)
+
+        entropies = [entropy(probabilities[j], base=2) for j in range(len(probabilities))]
+
+        most_unsure = np.argmax(entropies)
+
+    # Possible TODOs: Scaler, convert variables to categoricals (gender)
 
 
 if __name__ == '__main__':
