@@ -1,10 +1,14 @@
 import pandas as pd
-import string
 import nltk
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
-from sklearn.ensemble import AdaBoostClassifier
+from skmultilearn.problem_transform import BinaryRelevance
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.metrics import accuracy_score,precision_score,f1_score,recall_score
+from sklearn.metrics import hamming_loss, zero_one_loss
 
 
 def svd_features(x_train):
@@ -24,12 +28,12 @@ def preprocess():
     X = fda.drop(columns=['RA_Report #', 'RA_CAERS Created Date', 'AEC_Event Start Date', 'CI_Age at Adverse Event',
                           'CI_Age Unit', 'AEC_One Row Outcomes'])
 
+    X = X.dropna()
     # get the target column and convert to lower case
-    labels = fda['SYM_One Row Coded Symptoms']
+    labels = X['SYM_One Row Coded Symptoms']
     labels = labels.str.lower()
     print(labels[0])
 
-    X = X.dropna()
     X = X.drop(columns=[ 'SYM_One Row Coded Symptoms'])
     X = pd.get_dummies(X, prefix=['PRI_FDA Industry Name', 'PRI_Product Role', 'CI_Gender'],
                        columns=['PRI_FDA Industry Name', 'PRI_Product Role', 'CI_Gender'])
@@ -59,6 +63,40 @@ def preprocess():
 
     print("Shape of new Training Dataset:", X.shape)
     print(X.iloc[0])
+    print(X.head())
+    return X, labels
 
 
-preprocess()
+def problem_transform(X, labels):
+    mlb = MultiLabelBinarizer()
+    labels = labels.to_numpy()
+    print("numpy labels")
+    print(labels[0])
+    labels = mlb.fit_transform(labels)
+    print(labels[0])
+
+    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+
+    classifier = BinaryRelevance(classifier=DecisionTreeClassifier(random_state=0), require_dense=[False, True])
+    print("fitting...")
+    classifier.fit(x_train, y_train)
+    print("predicting...")
+    y_pred = classifier.predict(x_test)
+    print(y_pred[0])
+
+    return y_pred, y_test
+
+
+def evaluation(y_test, y_pred):
+
+    print("Hamming loss: ", hamming_loss(y_test, y_pred))
+    print("Zero one loss: ", zero_one_loss(y_test,y_pred, normalize=True))
+    print('Accuracy ' + str(accuracy_score(y_test, y_pred)))
+    print('F1 score ' + str(f1_score(y_test, y_pred, average='micro')))
+    print('Precision ' + str(precision_score(y_test, y_pred, average='micro')))
+    print('Recall ' + str(recall_score(y_test, y_pred, average='micro')))
+
+
+X, labels = preprocess()
+y_pred, y_tet = problem_transform(X, labels)
+evaluation(y_tet,y_pred)
