@@ -3,12 +3,16 @@ import nltk
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
-from skmultilearn.problem_transform import BinaryRelevance
+from skmultilearn.problem_transform import BinaryRelevance, LabelPowerset
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import accuracy_score,precision_score,f1_score,recall_score
 from sklearn.metrics import hamming_loss, zero_one_loss
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from skmultilearn.adapt import MLkNN
 
 
 def svd_features(x_train):
@@ -22,7 +26,7 @@ def preprocess():
     fda = pd.read_csv("CAERS_ASCII_2004_2017Q2.csv")
     print(fda.head())
     print("Data length ", len(fda))
-    print("Number of null values: ", fda.isnull().sum())
+    print("Percentage of null values: ", (fda.isnull().sum()/fda.shape[0])*100)
     print("Shape of Training Dataset:", fda.shape)
 
     X = fda.drop(columns=['RA_Report #', 'RA_CAERS Created Date', 'AEC_Event Start Date', 'CI_Age at Adverse Event',
@@ -67,7 +71,7 @@ def preprocess():
     return X, labels
 
 
-def problem_transform(X, labels):
+def binary_relevance(X, labels):
     mlb = MultiLabelBinarizer()
     labels = labels.to_numpy()
     print("numpy labels")
@@ -87,6 +91,45 @@ def problem_transform(X, labels):
     return y_pred, y_test
 
 
+def label_powerset(X, labels):
+    mlb = MultiLabelBinarizer()
+    labels = labels.to_numpy()
+    print("numpy labels")
+    print(labels[0])
+    labels = mlb.fit_transform(labels)
+    print(labels[0])
+
+    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+
+    classifier = LabelPowerset(classifier=GaussianNB(), require_dense=[True, True])
+    print("fitting...")
+    classifier.fit(x_train, y_train)
+    print("predicting...")
+    y_pred = classifier.predict(x_test)
+    print(y_pred[0])
+
+    return y_pred, y_test
+
+
+def knn(X, labels):
+    knn = MLkNN(k=10)
+    mlb = MultiLabelBinarizer()
+    labels = labels.to_numpy()
+    print("numpy labels")
+    print(labels[0])
+    labels = mlb.fit_transform(labels)
+    print(labels[0])
+
+    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+    print("fitting...")
+    knn.fit(x_train, y_train)
+    print("predicting...")
+    y_pred = knn.predict(x_test)
+    print(y_pred[0])
+
+    return y_pred, y_test
+
+
 def evaluation(y_test, y_pred):
 
     print("Hamming loss: ", hamming_loss(y_test, y_pred))
@@ -98,5 +141,7 @@ def evaluation(y_test, y_pred):
 
 
 X, labels = preprocess()
-y_pred, y_tet = problem_transform(X, labels)
-evaluation(y_tet,y_pred)
+#y_pred, y_test = binary_relevance(X, labels)
+#y_pred, y_test = label_powerset(X, labels)
+y_pred, y_test = knn(X, labels)
+evaluation(y_test, y_pred)
