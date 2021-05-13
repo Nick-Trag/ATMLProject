@@ -3,14 +3,18 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from scipy.stats import entropy
-
+from modAL.models import Committee, ActiveLearner
+from modAL.disagreement import vote_entropy
+from sklearn.tree import DecisionTreeClassifier
 
 data_root = os.path.join(os.path.dirname(__file__), 'data')
 RANDOM_STATE = 7
+# np.random.seed(RANDOM_STATE)
 
 
 # Source: https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison
@@ -38,8 +42,9 @@ def main():
     # Shuffle the train set (probably unnecessary, but good to do since we will later split the samples by index)
     x_train, y_train = shuffle_in_unison(x_train, y_train)
 
-    # 5% of the samples in the train set are actually labeled to start with
-    known_samples = int(0.05 * len(x_train))
+    # 0.1% of the samples in the train set are actually labeled to start with
+    initial_known_samples = int(0.001 * len(x_train))
+    known_samples = initial_known_samples
 
     model = LogisticRegression()
 
@@ -86,7 +91,7 @@ def main():
     random_recalls = np.zeros_like(accuracies)
     random_f1s = np.zeros_like(accuracies)
 
-    known_samples = int(0.05 * len(x_train))
+    known_samples = initial_known_samples
 
     model = LogisticRegression()
 
@@ -100,12 +105,46 @@ def main():
         random_f1s[i] = f1_score(y_val, y_pred)
 
         if known_samples != len(x_train):
-            new_known = np.random.randint(known_samples, len(x_train))  # TODO: Check this again (random number from the unknown indices)
+            new_known = np.random.randint(known_samples, len(x_train))
 
             x_train[[new_known, known_samples]] = x_train[[known_samples, new_known]]
             y_train[[new_known, known_samples]] = y_train[[known_samples, new_known]]
             known_samples += 1
-    # Possible TODOs: Scaler, convert variables to categoricals (gender)
+    # Possible TODO s: Scaler, convert variables to categoricals (gender)
+
+    # QUERY BY COMMITTEE
+
+    # The committee is comprised of 10 random shallow Decision Trees
+    learners = [
+        ActiveLearner(estimator=DecisionTreeClassifier(splitter='random', max_depth=3)) for __ in range(10)
+    ]
+
+    committee = Committee(learner_list=learners, query_strategy=vote_entropy)
+
+    known_samples = initial_known_samples
+
+    committee_accuracies = np.zeros(len(y_train) - known_samples + 1)
+    committee_precisions = np.zeros_like(accuracies)
+    committee_recalls = np.zeros_like(accuracies)
+    committee_f1s = np.zeros_like(accuracies)
+
+    for i in range(len(committee_accuracies)):
+        print(i)
+        committee.fit(x_train[:known_samples], y_train[:known_samples])
+        y_pred = committee.predict(x_val)
+        committee_accuracies[i] = accuracy_score(y_val, y_pred)
+        committee_precisions[i] = precision_score(y_val, y_pred)
+        committee_recalls[i] = recall_score(y_val, y_pred)
+        committee_f1s[i] = f1_score(y_val, y_pred)
+
+        if known_samples != len(x_train):
+            most_unsure, __ = committee.query(x_train[known_samples:])
+            # committee.teach(x_train[most_unsure], y_train[most_unsure])
+
+            x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
+            y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
+            known_samples += 1
+
 
 
 if __name__ == '__main__':
