@@ -27,6 +27,18 @@ def accuracy(net, dataset, device, batch_size=8):
     return (correct / len(dataset)) * 100
 
 
+def get_ranking(net, dataset, known_samples, device, batch_size=8):
+    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
+    entropies = np.zeros(len(dataset) - known_samples)
+    counter = known_samples
+    # TODO: Start from known_samples
+    for i_batch, (images, labels) in enumerate(loader):
+        images, labels = images.to(device), labels.to(device)
+        outputs = net(images)
+
+
+
+
 def main():
     transform = transforms.Compose([
         transforms.ToTensor()

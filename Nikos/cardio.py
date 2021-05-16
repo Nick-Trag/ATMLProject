@@ -71,7 +71,10 @@ def main():
 
             entropies = [entropy(probabilities[j], base=2) for j in range(len(probabilities))]
 
-            most_unsure = np.argmax(entropies)
+            # TODO: The most_unsure isn't actually the argmax, as it doesn't directly correlate with the indices
+
+            most_unsure = np.argmax(entropies) + known_samples  # (The indices of the probabilities and entropies arrays do not directly
+            # correlate with the indices of x_train and y_train, so we need to add the number of known_samples)
 
             x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
