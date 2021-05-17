@@ -17,7 +17,7 @@ from skmultilearn.adapt import MLkNN
 
 def svd_features(x_train):
     # dimensionality reduction using svd (appropriate for sparse matrices)
-    svd = TruncatedSVD(n_components=100)
+    svd = TruncatedSVD(n_components=50)
     x_train = svd.fit_transform(x_train)
     return x_train
 
@@ -29,21 +29,31 @@ def preprocess():
     print("Percentage of null values: ", (fda.isnull().sum()/fda.shape[0])*100)
     print("Shape of Training Dataset:", fda.shape)
 
+    # number of appearances of each value
+    gender = fda['CI_Gender'].value_counts()
+    print(gender)
+    # drop not useful columns
     X = fda.drop(columns=['RA_Report #', 'RA_CAERS Created Date', 'AEC_Event Start Date', 'CI_Age at Adverse Event',
                           'CI_Age Unit', 'AEC_One Row Outcomes'])
-
+    # drop rows with missing values on Coded Symptoms
     X = X.dropna()
+    # remove rows with not available values
+    X = X[(X.CI_Gender == "Female") | (X.CI_Gender == "Male")]
+
+    gender = X['CI_Gender'].value_counts()
+    print(gender)
+
     # get the target column and convert to lower case
     labels = X['SYM_One Row Coded Symptoms']
     labels = labels.str.lower()
     print(labels[0])
 
-    X = X.drop(columns=[ 'SYM_One Row Coded Symptoms'])
+    X = X.drop(columns=['SYM_One Row Coded Symptoms'])
+
     X = pd.get_dummies(X, prefix=['PRI_FDA Industry Name', 'PRI_Product Role', 'CI_Gender'],
                        columns=['PRI_FDA Industry Name', 'PRI_Product Role', 'CI_Gender'])
 
-    print("Shape of new Training Dataset:", X.shape)
-
+    # text process for the product names
     tokenizer = nltk.tokenize.RegexpTokenizer(pattern='\w+')
     X['product'] = X.apply(lambda row: tokenizer.tokenize(row['PRI_Reported Brand/Product Name']), axis=1)
     # Convert the text to lower case
@@ -72,15 +82,10 @@ def preprocess():
 
 
 def binary_relevance(X, labels):
-    mlb = MultiLabelBinarizer()
-    labels = labels.to_numpy()
-    print("numpy labels")
-    print(labels[0])
-    labels = mlb.fit_transform(labels)
-    print(labels[0])
 
-    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+    x_train, x_test, y_train, y_test = transform_and_split(X, labels)
 
+    # transformation using binary relevance
     classifier = BinaryRelevance(classifier=DecisionTreeClassifier(random_state=0), require_dense=[False, True])
     print("fitting...")
     classifier.fit(x_train, y_train)
@@ -92,15 +97,10 @@ def binary_relevance(X, labels):
 
 
 def label_powerset(X, labels):
-    mlb = MultiLabelBinarizer()
-    labels = labels.to_numpy()
-    print("numpy labels")
-    print(labels[0])
-    labels = mlb.fit_transform(labels)
-    print(labels[0])
 
-    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+    x_train, x_test, y_train, y_test = transform_and_split(X, labels)
 
+    # transformation using label powerset
     classifier = LabelPowerset(classifier=GaussianNB(), require_dense=[True, True])
     print("fitting...")
     classifier.fit(x_train, y_train)
@@ -112,15 +112,11 @@ def label_powerset(X, labels):
 
 
 def knn(X, labels):
-    knn = MLkNN(k=10)
-    mlb = MultiLabelBinarizer()
-    labels = labels.to_numpy()
-    print("numpy labels")
-    print(labels[0])
-    labels = mlb.fit_transform(labels)
-    print(labels[0])
 
-    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+    x_train, x_test, y_train, y_test = transform_and_split(X, labels)
+
+    # use multi label knn for the prediction
+    knn = MLkNN(k=10)
     print("fitting...")
     knn.fit(x_train, y_train)
     print("predicting...")
@@ -128,6 +124,19 @@ def knn(X, labels):
     print(y_pred[0])
 
     return y_pred, y_test
+
+
+def transform_and_split(X, labels):
+    #use multi label binarizer to transform the labels
+    mlb = MultiLabelBinarizer()
+    labels = labels.to_numpy()
+    print("Label example:")
+    print(labels[0])
+    labels = mlb.fit_transform(labels)
+    print(labels[0])
+
+    x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
+    return x_train, x_test, y_train, y_test
 
 
 def evaluation(y_test, y_pred):
@@ -141,7 +150,7 @@ def evaluation(y_test, y_pred):
 
 
 X, labels = preprocess()
-#y_pred, y_test = binary_relevance(X, labels)
+y_pred, y_test = binary_relevance(X, labels)
 #y_pred, y_test = label_powerset(X, labels)
-y_pred, y_test = knn(X, labels)
+#y_pred, y_test = knn(X, labels)
 evaluation(y_test, y_pred)
