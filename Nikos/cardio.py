@@ -142,11 +142,40 @@ def main():
         committee_f1s[i] = f1_score(y_val, y_pred)
 
         if known_samples != len(x_train):
-            most_unsure = committee.query(x_train[known_samples:])[0][0]
+            most_unsure = committee.query(x_train[known_samples:])[0][0] + known_samples
             # committee.teach(x_train[most_unsure], y_train[most_unsure])
 
             x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
+            known_samples += 1
+
+    learners = [
+        ActiveLearner(estimator=DecisionTreeClassifier(splitter='random', max_depth=1)) for __ in range(10)
+    ]
+
+    committee = Committee(learner_list=learners, query_strategy=vote_entropy_sampling)
+
+    known_samples = initial_known_samples
+
+    committee_random_accuracies = np.zeros_like(accuracies)
+    committee_random_precisions = np.zeros_like(accuracies)
+    committee_random_recalls = np.zeros_like(accuracies)
+    committee_random_f1s = np.zeros_like(accuracies)
+
+    for i in range(min(len(committee_random_accuracies), max_iterations)):
+        print(i)
+        committee.fit(x_train[:known_samples], y_train[:known_samples])
+        y_pred = committee.predict(x_val)
+        committee_random_accuracies[i] = accuracy_score(y_val, y_pred)
+        committee_random_precisions[i] = precision_score(y_val, y_pred)
+        committee_random_recalls[i] = recall_score(y_val, y_pred)
+        committee_random_f1s[i] = f1_score(y_val, y_pred)
+
+        if known_samples != len(x_train):
+            new_known = np.random.randint(known_samples, len(x_train))
+
+            x_train[[new_known, known_samples]] = x_train[[known_samples, new_known]]
+            y_train[[new_known, known_samples]] = y_train[[known_samples, new_known]]
             known_samples += 1
 
     # plt.plot(accuracies, color='purple', label='Uncertainty Sampling')
@@ -157,9 +186,10 @@ def main():
     # plt.legend()
     # plt.show()
 
-    plt.plot(np.convolve(accuracies, np.ones(7) / 7, mode='valid'), color='purple', label='Uncertainty Sampling')
-    plt.plot(np.convolve(random_accuracies, np.ones(7) / 7, mode='valid'), color='lightsalmon', label='Random Sampling')
+    plt.plot(np.convolve(accuracies, np.ones(7) / 7, mode='valid'), color='purple', label='Logistic Regression with Uncertainty Sampling')
+    plt.plot(np.convolve(random_accuracies, np.ones(7) / 7, mode='valid'), color='lightsalmon', label='Logistic Regression with Random Sampling')
     plt.plot(np.convolve(committee_accuracies, np.ones(7) / 7, mode='valid'), color='chartreuse', label='Query By Committee')
+    plt.plot(np.convolve(committee_random_accuracies, np.ones(7) / 7, mode='valid'), color='lightcoral', label='Committee with Random Sampling')
     plt.xlabel('Additional labeled examples')
     plt.ylabel('Validation set accuracy')
     plt.legend()
