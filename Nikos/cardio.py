@@ -43,7 +43,6 @@ def main():
     # Shuffle the train set (probably unnecessary, but good to do since we will later split the samples by index)
     x_train, y_train = shuffle_in_unison(x_train, y_train)
 
-    # TODO: Still gets good accuracy. Try even fewer
     # 0.05% of the samples in the train set are actually labeled to start with
     initial_known_samples = int(0.0005 * len(x_train))
     known_samples = initial_known_samples
@@ -114,7 +113,6 @@ def main():
             x_train[[new_known, known_samples]] = x_train[[known_samples, new_known]]
             y_train[[new_known, known_samples]] = y_train[[known_samples, new_known]]
             known_samples += 1
-    # Possible TODO s: Scaler, convert variables to categoricals (gender)
 
     # QUERY BY COMMITTEE
 
@@ -197,12 +195,16 @@ def main():
 
     # DENSITY-WEIGHTED UNCERTAINTY SAMPLING
 
+    # Only use 5000 samples from the training set, in order to make getting the density information feasible (the set has been shuffled, so the choice is actually random)
+    train_samples_used = 5000
+    x_train, y_train = x_train[:train_samples_used], y_train[:train_samples_used]
+
     known_samples = initial_known_samples
 
-    density_accuracies = np.zeros_like(accuracies)
-    density_precisions = np.zeros_like(accuracies)
-    density_recalls = np.zeros_like(accuracies)
-    density_f1s = np.zeros_like(accuracies)
+    density_accuracies = np.zeros(min(len(y_train) - known_samples + 1, max_iterations))
+    density_precisions = np.zeros_like(density_accuracies)
+    density_recalls = np.zeros_like(density_accuracies)
+    density_f1s = np.zeros_like(density_accuracies)
 
     model = LogisticRegression()
 
@@ -211,10 +213,10 @@ def main():
         # model.fit(x_train_l, y_train_l)
         model.fit(x_train[:known_samples], y_train[:known_samples])
         y_pred = model.predict(x_val)
-        accuracies[i] = accuracy_score(y_val, y_pred)
-        precisions[i] = precision_score(y_val, y_pred)
-        recalls[i] = recall_score(y_val, y_pred)
-        f1s[i] = f1_score(y_val, y_pred)
+        density_accuracies[i] = accuracy_score(y_val, y_pred)
+        density_precisions[i] = precision_score(y_val, y_pred)
+        density_recalls[i] = recall_score(y_val, y_pred)
+        density_f1s[i] = f1_score(y_val, y_pred)
 
         if known_samples != len(x_train):
 
@@ -222,17 +224,51 @@ def main():
 
             entropies = [entropy(probabilities[j], base=2) for j in range(len(probabilities))]
 
-            # TODO: Get density information and use it before deciding which sample to add next
-            # TODO: Get a random subsample of the train set for this, as the original is too big to get density information
-            # densities = information_density(x_train[known_samples:], metric='euclidean')  # Needs 20 GB. Cannot be run in my PC for sure
+            densities = information_density(x_train[known_samples:], metric='euclidean')
 
-            most_unsure = np.argmax(entropies) + known_samples
+            scores = entropies * densities
+
+            most_unsure = np.argmax(scores) + known_samples
 
             x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
             # x_train[most_unsure], x_train[known_samples] = x_train[known_samples], x_train[most_unsure]
             # y_train[most_unsure], y_train[known_samples] = y_train[known_samples], y_train[most_unsure]
             known_samples += 1
+
+    known_samples = initial_known_samples
+
+    density_random_accuracies = np.zeros_like(density_accuracies)
+    density_random_precisions = np.zeros_like(density_accuracies)
+    density_random_recalls = np.zeros_like(density_accuracies)
+    density_random_f1s = np.zeros_like(density_accuracies)
+
+    model = LogisticRegression()
+
+    for i in range(min(len(density_random_accuracies), max_iterations)):
+        print(i)
+        # model.fit(x_train_l, y_train_l)
+        model.fit(x_train[:known_samples], y_train[:known_samples])
+        y_pred = model.predict(x_val)
+        density_random_accuracies[i] = accuracy_score(y_val, y_pred)
+        density_random_precisions[i] = precision_score(y_val, y_pred)
+        density_random_recalls[i] = recall_score(y_val, y_pred)
+        density_random_f1s[i] = f1_score(y_val, y_pred)
+
+        if known_samples != len(x_train):
+            new_known = np.random.randint(known_samples, len(x_train))
+
+            x_train[[new_known, known_samples]] = x_train[[known_samples, new_known]]
+            y_train[[new_known, known_samples]] = y_train[[known_samples, new_known]]
+            known_samples += 1
+
+    plt.figure(figsize=(8.5, 5.5))
+    plt.plot(np.convolve(density_accuracies, np.ones(7) / 7, mode='valid'), color='crimson', label='Logistic Regression with Density-Weighted Uncertainty Sampling')
+    plt.plot(np.convolve(density_random_accuracies, np.ones(7) / 7, mode='valid'), color='cornflowerblue', label='Logistic Regression with Random Sampling')
+    plt.xlabel('Additional labeled examples')
+    plt.ylabel('Validation set accuracy')
+    plt.legend()
+    plt.show()
 
 
 if __name__ == '__main__':
