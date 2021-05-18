@@ -44,18 +44,19 @@ def main():
     x_train, y_train = shuffle_in_unison(x_train, y_train)
 
     # TODO: Still gets good accuracy. Try even fewer
-    # 0.1% of the samples in the train set are actually labeled to start with
-    initial_known_samples = int(0.001 * len(x_train))
+    # 0.05% of the samples in the train set are actually labeled to start with
+    initial_known_samples = int(0.0005 * len(x_train))
     known_samples = initial_known_samples
+    max_iterations = 1000  # It's pointless to add every single sample to the labeled set, so we stop after 1000
 
     model = LogisticRegression()
 
-    accuracies = np.zeros(len(y_train) - known_samples + 1)
+    accuracies = np.zeros(min(len(y_train) - known_samples + 1, max_iterations))
     precisions = np.zeros_like(accuracies)
     recalls = np.zeros_like(accuracies)
     f1s = np.zeros_like(accuracies)
 
-    for i in range(len(accuracies)):
+    for i in range(min(len(accuracies), max_iterations)):
         print(i)
         # model.fit(x_train_l, y_train_l)
         model.fit(x_train[:known_samples], y_train[:known_samples])
@@ -70,8 +71,6 @@ def main():
             probabilities = model.predict_proba(x_train[known_samples:])
 
             entropies = [entropy(probabilities[j], base=2) for j in range(len(probabilities))]
-
-            # TODO: The most_unsure isn't actually the argmax, as it doesn't directly correlate with the indices
 
             most_unsure = np.argmax(entropies) + known_samples  # (The indices of the probabilities and entropies arrays do not directly
             # correlate with the indices of x_train and y_train, so we need to add the number of known_samples)
@@ -100,7 +99,7 @@ def main():
 
     model = LogisticRegression()
 
-    for i in range(len(random_accuracies)):
+    for i in range(min(len(random_accuracies), max_iterations)):
         print(i)
         model.fit(x_train[:known_samples], y_train[:known_samples])
         y_pred = model.predict(x_val)
@@ -121,19 +120,19 @@ def main():
 
     # The committee is comprised of 10 random shallow Decision Trees
     learners = [
-        ActiveLearner(estimator=DecisionTreeClassifier(splitter='random', max_depth=3)) for __ in range(10)
+        ActiveLearner(estimator=DecisionTreeClassifier(splitter='random', max_depth=1)) for __ in range(10)
     ]
 
     committee = Committee(learner_list=learners, query_strategy=vote_entropy_sampling)
 
     known_samples = initial_known_samples
 
-    committee_accuracies = np.zeros(len(y_train) - known_samples + 1)
+    committee_accuracies = np.zeros_like(accuracies)
     committee_precisions = np.zeros_like(accuracies)
     committee_recalls = np.zeros_like(accuracies)
     committee_f1s = np.zeros_like(accuracies)
 
-    for i in range(len(committee_accuracies)):
+    for i in range(min(len(committee_accuracies), max_iterations)):
         print(i)
         committee.fit(x_train[:known_samples], y_train[:known_samples])
         y_pred = committee.predict(x_val)
@@ -150,18 +149,34 @@ def main():
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
             known_samples += 1
 
+    # plt.plot(accuracies, color='purple', label='Uncertainty Sampling')
+    # plt.plot(random_accuracies, color='lightsalmon', label='Random Sampling')
+    # plt.plot(committee_accuracies, color='chartreuse', label='Query By Committee')
+    # plt.xlabel('Additional labeled examples')
+    # plt.ylabel('Validation set accuracy')
+    # plt.legend()
+    # plt.show()
+
+    plt.plot(np.convolve(accuracies, np.ones(7) / 7, mode='valid'), color='purple', label='Uncertainty Sampling')
+    plt.plot(np.convolve(random_accuracies, np.ones(7) / 7, mode='valid'), color='lightsalmon', label='Random Sampling')
+    plt.plot(np.convolve(committee_accuracies, np.ones(7) / 7, mode='valid'), color='chartreuse', label='Query By Committee')
+    plt.xlabel('Additional labeled examples')
+    plt.ylabel('Validation set accuracy')
+    plt.legend()
+    plt.show()
+
     # DENSITY-WEIGHTED UNCERTAINTY SAMPLING
 
     known_samples = initial_known_samples
 
-    density_accuracies = np.zeros(len(y_train) - known_samples + 1)
+    density_accuracies = np.zeros_like(accuracies)
     density_precisions = np.zeros_like(accuracies)
     density_recalls = np.zeros_like(accuracies)
     density_f1s = np.zeros_like(accuracies)
 
     model = LogisticRegression()
 
-    for i in range(len(density_accuracies)):
+    for i in range(min(len(density_accuracies), max_iterations)):
         print(i)
         # model.fit(x_train_l, y_train_l)
         model.fit(x_train[:known_samples], y_train[:known_samples])
@@ -178,9 +193,10 @@ def main():
             entropies = [entropy(probabilities[j], base=2) for j in range(len(probabilities))]
 
             # TODO: Get density information and use it before deciding which sample to add next
+            # TODO: Get a random subsample of the train set for this, as the original is too big to get density information
             # densities = information_density(x_train[known_samples:], metric='euclidean')  # Needs 20 GB. Cannot be run in my PC for sure
 
-            most_unsure = np.argmax(entropies)
+            most_unsure = np.argmax(entropies) + known_samples
 
             x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
