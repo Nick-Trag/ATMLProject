@@ -46,6 +46,7 @@ def main():
         transforms.ToTensor()
     ])
     train_set = OCTDataset(root_directory=os.path.join(data_root, 'OCT2017'), transform=transform, mode='train')
+    test_set = OCTDataset(root_directory=os.path.join(data_root, 'OCT2017'), transform=transform, mode='test')
 
     batch_size = 8
 
@@ -64,28 +65,36 @@ def main():
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
 
-    net = Net().to(device)
-    criterion = nn.CrossEntropyLoss()
-    lr = 0.001
-    momentum = 0.9
-    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-    epochs = 100
-    model_name = 'model.pth'
+    max_iterations = 1000
 
-    # Train loop
-    for epoch in range(epochs):
-        for i_batch, (images, labels) in enumerate(labeled_loader):
-            images, labels = images.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = net(images)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+    accuracies = np.zeros(max_iterations)
 
-    torch.save(net.state_dict(), model_name)
+    for i in range(max_iterations):
+        net = Net().to(device)
+        criterion = nn.CrossEntropyLoss()
+        lr = 0.001
+        momentum = 0.9
+        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+        epochs = 100
+        model_name = 'model.pth'
 
-    # TODO: Now test it on the pool. Test it on the entire train set (no shuffle), but consider only the unlabeled ones. Then, add the indices to labeled_indices and recreate the subset and the loader
-    # (and save the accuracies)
+        # Train loop
+        for epoch in range(epochs):
+            for i_batch, (images, labels) in enumerate(labeled_loader):
+                images, labels = images.to(device), labels.to(device)
+                optimizer.zero_grad()
+                outputs = net(images)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+
+        with torch.no_grad():
+            accuracies[i] = accuracy(net, test_set, device, batch_size=batch_size)
+
+        # TODO: Now test it on the pool. Test it on the entire train set (no shuffle), but consider only the unlabeled ones.
+        #  Then, add the indices to labeled_indices and recreate the subset and the loader
+
+        # torch.save(net.state_dict(), model_name)
 
 
 if __name__ == '__main__':

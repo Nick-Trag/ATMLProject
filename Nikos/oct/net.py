@@ -17,7 +17,7 @@ class Net(nn.Module):
         x = self.maxpool(f.relu(self.conv1(x)))
         x = self.maxpool(f.relu(self.conv2(x)))
         x = self.maxpool(f.relu(self.conv3(x)))
-        x = f.avg_pool2d(x, kernel_size=x.size()[2:])
+        x = f.avg_pool2d(x, kernel_size=x.size()[2:])  # TODO: Check if this works. The model might be unable to learn with this shit
         x = x.view(x.size()[0], -1)
         x = f.relu(self.fc1(x))
         x = f.relu(self.fc2(x))
