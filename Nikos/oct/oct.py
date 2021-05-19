@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from scipy.stats import entropy
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
@@ -27,21 +28,64 @@ def accuracy(net, dataset, device, batch_size=8):
     return (correct / len(dataset)) * 100
 
 
-def get_ranking(net, dataset, known_samples, device, batch_size=8):
-    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
-    entropies = np.zeros(len(dataset) - known_samples)
-    counter = known_samples
-    # TODO: Start from known_samples. Use a sampler
+def get_entropies(net, dataset, device, batch_size=8):
+    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=False)
+    entropies = np.zeros(len(dataset))
+    counter = 0
     for i_batch, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
         outputs = net(images)
+        for i in range(len(outputs)):
+            entropies[counter] = entropy(outputs[i], base=2)
+            counter += 1
+    return entropies
 
+
+# Return the top n indices that don't already exist in labeled indices
+def take_top_n(ranking, labeled_indices, n):
+    indices = np.zeros(n)
+    counter = 0
+    for i in range(len(ranking)):
+        if ranking[i] not in labeled_indices:
+            indices[counter] = ranking[i]
+            counter += 1
+        if counter == n:
+            return indices
+    return indices[:counter]  # If there aren't n samples that don't exist in labeled_indices, just return the everything we've found (not needed for this project)
+
+
+# Return n indices, uniformly sampled from the top m (that all aren't in labeled_indices)
+def take_n_uniformly_from_top_m(ranking, labeled_indices, n, m):
+    top_m = np.zeros(m, dtype=int)
+    counter = 0
+    for i in range(len(ranking)):
+        if ranking[i] not in labeled_indices:
+            top_m[counter] = ranking[i]
+            counter += 1
+        if counter == m:
+            break
+    mask = np.linspace(0, m - 1, num=n, dtype=int)
+    return top_m[mask]
+
+
+def take_n_randomly(train_set_size, labeled_indices, n):
+    if train_set_size - len(labeled_indices) < n:
+        raise ValueError("Only " + str(train_set_size - len(labeled_indices)) + " samples can be drawn, but was asked to draw " + str(n))
+    indices = np.zeros(n)
+    counter = 0
+    while True:
+        next_index = np.random.randint(0, train_set_size)
+        if next_index not in labeled_indices:
+            indices[counter] = next_index
+            counter += 1
+        if counter == n:
+            return indices
 
 
 
 def main():
     transform = transforms.Compose([
-        transforms.Resize((300, 300)),
+        transforms.Resize((200, 200)),
         # transforms.RandomCrop(250),
         transforms.ToTensor()
     ])
@@ -65,21 +109,23 @@ def main():
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
 
-    max_iterations = 1000
+    max_iterations = 100
 
     accuracies = np.zeros(max_iterations)
 
     for i in range(max_iterations):
+        print("Iteration " + str(i))
         net = Net().to(device)
         criterion = nn.CrossEntropyLoss()
         lr = 0.001
         momentum = 0.9
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-        epochs = 100
+        epochs = 50
         model_name = 'model.pth'
 
         # Train loop
         for epoch in range(epochs):
+            print("(Training) Epoch " + str(epoch))
             for i_batch, (images, labels) in enumerate(labeled_loader):
                 images, labels = images.to(device), labels.to(device)
                 optimizer.zero_grad()
@@ -90,9 +136,12 @@ def main():
 
         with torch.no_grad():
             accuracies[i] = accuracy(net, test_set, device, batch_size=batch_size)
+            entropies = get_entropies(net, train_set, device, batch_size=batch_size)
 
-        # TODO: Now test it on the pool. Test it on the entire train set (no shuffle), but consider only the unlabeled ones.
-        #  Then, add the indices to labeled_indices and recreate the subset and the loader
+            ranking = (-entropies).argsort()
+
+            # TODO: Now test it on the pool. Test it on the entire train set (no shuffle), but consider only the unlabeled ones.
+            #  Then, add the indices to labeled_indices and recreate the subset and the loader
 
         # torch.save(net.state_dict(), model_name)
 
