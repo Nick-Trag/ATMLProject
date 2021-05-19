@@ -18,7 +18,7 @@ RANDOM_STATE = 7
 
 def accuracy(net, dataset, device, batch_size=8):
     correct = 0
-    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
+    loader = DataLoader(dataset, batch_size=batch_size)
     for i, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
         outputs = net(images)
@@ -30,12 +30,12 @@ def accuracy(net, dataset, device, batch_size=8):
 
 
 def get_entropies(net, dataset, device, batch_size=8):
-    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=False)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     entropies = np.zeros(len(dataset))
     counter = 0
     for i_batch, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
-        outputs = net(images)
+        outputs = net(images).to('cpu')
         for i in range(len(outputs)):
             entropies[counter] = entropy(outputs[i], base=2)
             counter += 1
@@ -44,7 +44,7 @@ def get_entropies(net, dataset, device, batch_size=8):
 
 # Return the top n indices that don't already exist in labeled indices
 def take_top_n(ranking, labeled_indices, n):
-    indices = np.zeros(n)
+    indices = np.zeros(n, dtype=int)
     counter = 0
     for i in range(len(ranking)):
         if ranking[i] not in labeled_indices:
@@ -72,7 +72,7 @@ def take_n_uniformly_from_top_m(ranking, labeled_indices, n, m):
 def take_n_randomly(train_set_size, labeled_indices, n):
     if train_set_size - len(labeled_indices) < n:
         raise ValueError("Only " + str(train_set_size - len(labeled_indices)) + " samples can be drawn, but was asked to draw " + str(n))
-    indices = np.zeros(n)
+    indices = np.zeros(n, dtype=int)
     counter = 0
     while True:
         next_index = np.random.randint(0, train_set_size)
@@ -90,6 +90,11 @@ def main():
         transforms.ToTensor()
     ])
     train_set = OCTDataset(root_directory=os.path.join(data_root, 'OCT2017'), transform=transform, mode='train')
+
+    # The original train set is way too huge. We'll take a subset
+
+    samples_used = np.random.choice(len(train_set), size=10000, replace=False)
+    train_set = Subset(train_set, samples_used)
     test_set = OCTDataset(root_directory=os.path.join(data_root, 'OCT2017'), transform=transform, mode='test')
 
     batch_size = 8
@@ -99,7 +104,7 @@ def main():
     known_samples = int(0.01 * train_set_size)
 
     # Randomly choose the samples that we will consider labeled to start with
-    initial_labeled_indices = np.random.choice(len(train_set), size=known_samples, replace=False)
+    initial_labeled_indices = np.random.choice(train_set_size, size=known_samples, replace=False)
 
     labeled_indices = initial_labeled_indices.copy()
 
@@ -152,7 +157,7 @@ def main():
 
         # torch.save(net.state_dict(), model_name)
 
-    labeled_indices = initial_labeled_indices
+    labeled_indices = initial_labeled_indices.copy()
 
     uniform_accuracies = np.zeros_like(accuracies)
 
@@ -193,7 +198,7 @@ def main():
 
         # torch.save(net.state_dict(), model_name)
 
-    labeled_indices = initial_labeled_indices
+    labeled_indices = initial_labeled_indices.copy()
 
     random_accuracies = np.zeros_like(accuracies)
 
