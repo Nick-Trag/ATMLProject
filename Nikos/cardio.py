@@ -3,7 +3,6 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
@@ -76,18 +75,7 @@ def main():
 
             x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
-            # x_train[most_unsure], x_train[known_samples] = x_train[known_samples], x_train[most_unsure]
-            # y_train[most_unsure], y_train[known_samples] = y_train[known_samples], y_train[most_unsure]
             known_samples += 1
-
-            # x_most_unsure = x_train_u[most_unsure]
-            # y_most_unsure = y_train_u[most_unsure]
-            #
-            # x_train_l = np.append(x_train_l, x_most_unsure)
-            # y_train_l = np.append(y_train_l, y_most_unsure)
-            #
-            # x_train_u = np.delete(x_train_u, most_unsure)
-            # y_train_u = np.delete(y_train_u, most_unsure)
 
     random_accuracies = np.zeros_like(accuracies)
     random_precisions = np.zeros_like(accuracies)
@@ -232,8 +220,6 @@ def main():
 
             x_train[[most_unsure, known_samples]] = x_train[[known_samples, most_unsure]]
             y_train[[most_unsure, known_samples]] = y_train[[known_samples, most_unsure]]
-            # x_train[most_unsure], x_train[known_samples] = x_train[known_samples], x_train[most_unsure]
-            # y_train[most_unsure], y_train[known_samples] = y_train[known_samples], y_train[most_unsure]
             known_samples += 1
 
     known_samples = initial_known_samples
