@@ -128,7 +128,6 @@ def main():
         momentum = 0.9
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
         epochs = 50
-        model_name = 'model.pth'
 
         # Train loop
         for epoch in range(epochs):
@@ -155,8 +154,6 @@ def main():
 
             labeled_loader = DataLoader(train_set_l, batch_size=batch_size, shuffle=True)
 
-        # torch.save(net.state_dict(), model_name)
-
     labeled_indices = initial_labeled_indices.copy()
 
     uniform_accuracies = np.zeros_like(accuracies)
@@ -169,7 +166,6 @@ def main():
         momentum = 0.9
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
         epochs = 50
-        model_name = 'model.pth'
 
         # Train loop
         for epoch in range(epochs):
@@ -196,8 +192,6 @@ def main():
 
             labeled_loader = DataLoader(train_set_l, batch_size=batch_size, shuffle=True)
 
-        # torch.save(net.state_dict(), model_name)
-
     labeled_indices = initial_labeled_indices.copy()
 
     random_accuracies = np.zeros_like(accuracies)
@@ -210,7 +204,6 @@ def main():
         momentum = 0.9
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
         epochs = 50
-        model_name = 'model.pth'
 
         # Train loop
         for epoch in range(epochs):
@@ -234,12 +227,11 @@ def main():
 
             labeled_loader = DataLoader(train_set_l, batch_size=batch_size, shuffle=True)
 
-        # torch.save(net.state_dict(), model_name)
-
     x_axis = np.linspace(0, 20 * 99, num=100, dtype=int)
-    plt.plot(x_axis, np.convolve(accuracies, np.ones(7)/7, mode='valid'), label='Accuracy when selecting the top 20 samples', color='burlywood')
-    plt.plot(x_axis, np.convolve(uniform_accuracies, np.ones(7)/7, mode='valid'), label='Accuracy when selecting 20 samples uniformly from the top 200', color='darkorchid')
-    plt.plot(x_axis, np.convolve(random_accuracies, np.ones(7)/7, mode='valid'), label='Accuracy when selecting 20 samples randomly', color='firebrick')
+    plt.figure(figsize=(8.5, 5.5))
+    plt.plot(x_axis[3:97], np.convolve(accuracies, np.ones(7)/7, mode='valid'), label='Accuracy when selecting the top 20 samples', color='burlywood')
+    plt.plot(x_axis[3:97], np.convolve(uniform_accuracies, np.ones(7)/7, mode='valid'), label='Accuracy when selecting 20 samples uniformly from the top 200', color='darkorchid')
+    plt.plot(x_axis[3:97], np.convolve(random_accuracies, np.ones(7)/7, mode='valid'), label='Accuracy when selecting 20 samples randomly', color='firebrick')
     plt.xlabel('Additional labeled examples')
     plt.ylabel('Test set accuracy')
     plt.legend()
