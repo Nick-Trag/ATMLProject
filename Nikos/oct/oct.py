@@ -92,7 +92,6 @@ def main():
     train_set = OCTDataset(root_directory=os.path.join(data_root, 'OCT2017'), transform=transform, mode='train')
 
     # The original train set is way too huge. We'll take a subset
-
     samples_used = np.random.choice(len(train_set), size=10000, replace=False)
     train_set = Subset(train_set, samples_used)
     test_set = OCTDataset(root_directory=os.path.join(data_root, 'OCT2017'), transform=transform, mode='test')
