@@ -8,11 +8,13 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import accuracy_score,precision_score,f1_score,recall_score
-from sklearn.metrics import hamming_loss, zero_one_loss
+from sklearn.metrics import hamming_loss, zero_one_loss, multilabel_confusion_matrix, classification_report
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from skmultilearn.adapt import MLkNN
+from sklearn.neighbors import KNeighborsClassifier
+import numpy as np
 
 
 def svd_features(x_train):
@@ -24,7 +26,6 @@ def svd_features(x_train):
 
 def preprocess():
     fda = pd.read_csv("CAERS_ASCII_2004_2017Q2.csv")
-    print(fda.head())
     print("Data length ", len(fda))
     print("Percentage of null values: ", (fda.isnull().sum()/fda.shape[0])*100)
     print("Shape of Training Dataset:", fda.shape)
@@ -34,21 +35,17 @@ def preprocess():
     print(gender)
     # drop not useful columns
     X = fda.drop(columns=['RA_Report #', 'RA_CAERS Created Date', 'AEC_Event Start Date', 'CI_Age at Adverse Event',
-                          'CI_Age Unit', 'AEC_One Row Outcomes'])
+                          'CI_Age Unit', 'SYM_One Row Coded Symptoms'])
     # drop rows with missing values on Coded Symptoms
     X = X.dropna()
     # remove rows with not available values
     X = X[(X.CI_Gender == "Female") | (X.CI_Gender == "Male")]
 
-    gender = X['CI_Gender'].value_counts()
-    print(gender)
-
     # get the target column and convert to lower case
-    labels = X['SYM_One Row Coded Symptoms']
+    labels = X['AEC_One Row Outcomes']
     labels = labels.str.lower()
-    print(labels[0])
 
-    X = X.drop(columns=['SYM_One Row Coded Symptoms'])
+    X = X.drop(columns=['AEC_One Row Outcomes'])
 
     X = pd.get_dummies(X, prefix=['PRI_FDA Industry Name', 'PRI_Product Role', 'CI_Gender'],
                        columns=['PRI_FDA Industry Name', 'PRI_Product Role', 'CI_Gender'])
@@ -76,8 +73,6 @@ def preprocess():
     X = X.drop(columns=['PRI_Reported Brand/Product Name', 'product'])
 
     print("Shape of new Training Dataset:", X.shape)
-    print(X.iloc[0])
-    print(X.head())
     return X, labels
 
 
@@ -86,7 +81,7 @@ def binary_relevance(X, labels):
     x_train, x_test, y_train, y_test = transform_and_split(X, labels)
 
     # transformation using binary relevance
-    classifier = BinaryRelevance(classifier=DecisionTreeClassifier(random_state=0), require_dense=[False, True])
+    classifier = BinaryRelevance(classifier=SVC(kernel='linear'), require_dense=[False, True])
     print("fitting...")
     classifier.fit(x_train, y_train)
     print("predicting...")
@@ -101,7 +96,7 @@ def label_powerset(X, labels):
     x_train, x_test, y_train, y_test = transform_and_split(X, labels)
 
     # transformation using label powerset
-    classifier = LabelPowerset(classifier=GaussianNB(), require_dense=[True, True])
+    classifier = LabelPowerset(classifier=DecisionTreeClassifier(random_state=0), require_dense=[False, True])
     print("fitting...")
     classifier.fit(x_train, y_train)
     print("predicting...")
@@ -129,11 +124,12 @@ def knn(X, labels):
 def transform_and_split(X, labels):
     #use multi label binarizer to transform the labels
     mlb = MultiLabelBinarizer()
-    labels = labels.to_numpy()
     print("Label example:")
     print(labels[0])
-    labels = mlb.fit_transform(labels)
+    labels = mlb.fit_transform(labels.str.split(','))
     print(labels[0])
+    print(list(mlb.classes_))
+    print('Number of unique labels: ', len(list(mlb.classes_)))
 
     x_train, x_test, y_train, y_test = train_test_split(X, labels, test_size=0.3, random_state=100)
     return x_train, x_test, y_train, y_test
@@ -143,10 +139,18 @@ def evaluation(y_test, y_pred):
 
     print("Hamming loss: ", hamming_loss(y_test, y_pred))
     print("Zero one loss: ", zero_one_loss(y_test,y_pred, normalize=True))
-    print('Accuracy ' + str(accuracy_score(y_test, y_pred)))
-    print('F1 score ' + str(f1_score(y_test, y_pred, average='micro')))
-    print('Precision ' + str(precision_score(y_test, y_pred, average='micro')))
-    print('Recall ' + str(recall_score(y_test, y_pred, average='micro')))
+    print('Accuracy ', str(accuracy_score(y_test, y_pred)))
+    print('F1 score ', str(f1_score(y_test, y_pred, average='micro')))
+    print('Precision ', str(precision_score(y_test, y_pred, average='micro')))
+    print('Recall ', str(recall_score(y_test, y_pred, average='micro')))
+
+    #print('Confusion matrix: ', multilabel_confusion_matrix(y_test, y_pred))
+    label_names = [' congenital anomaly', ' death', ' disability', ' hospitalization', ' life threatening', ' non-serious injuries/ illness',
+                   ' other serious (important medical events)', ' req. intervention to prvnt perm. imprmnt.', ' serious injuries/ illness', ' visited a health care provider',
+                   ' visited an er', 'congenital anomaly', 'death', 'disability', 'hospitalization', 'life threatening', 'non-serious injuries/ illness', 'none', 'other serious (important medical events)',
+                   'req. intervention to prvnt perm. imprmnt.', 'serious injuries/ illness', 'visited a health care provider', 'visited an er']
+
+    print('Classification report: ', classification_report(y_test, y_pred, target_names=label_names))
 
 
 X, labels = preprocess()
@@ -154,3 +158,6 @@ y_pred, y_test = binary_relevance(X, labels)
 #y_pred, y_test = label_powerset(X, labels)
 #y_pred, y_test = knn(X, labels)
 evaluation(y_test, y_pred)
+#label_based_macro_accuracy(y_test, y_pred)
+#label_based_micro_accuracy(y_test, y_pred)
+#label_based_macro_precision(y_test, y_pred)
